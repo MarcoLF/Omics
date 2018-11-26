@@ -8,7 +8,10 @@ output:
 ---
 The following script returns genomic coordinates around preset TSSs using a range that is decided by the user. 
 
-Here, I develop such script starting from a RNA-seq data that were previously analysed (FGC - ETH Zurich). More specifically, stargin from previously defined TSSs, I wanted to defined the coordinates around each TSS with a given dimension (n bases upstream and m downstram from each TSS) taking in consideration the gene orientation (+ or - strand) to which the TSS is associated.
+Here, I develop such script starting from a RNA-seq data that were previously analysed (FGC - ETH Zurich). More specifically,
+stargin from previously defined TSSs, I wanted to defined the coordinates around each TSS with a given dimension (n bases
+upstream and m downstram from each TSS) taking in consideration the gene orientation (+ or - strand) to which the TSS is
+associated.
 
 To start I specify the path where to look for the data that contains our starting information (RNA-seq analysis derived)
 ```{r}
@@ -19,7 +22,8 @@ name = c('L4440_grh1', 'N2_del', 'N2b1_2', 'N2b2_11') #names of the RNA-seq data
 head(read.table(paste0(name[1], '.txt'), sep = "\t", header = T)) #returns an example of how the dataframe looks like
 ```
 
-The function get.coord() uses the information from the RNA-seq dataframes and returns for each of them a new .bed file that can be processed with the function getfasta (bedtools2) to obtain the specific sequences.
+The function get.coord() uses the information from the RNA-seq dataframes and returns for each of them a new .bed file that
+can be processed with the function getfasta (bedtools2) to obtain the specific sequences.
 
 Specifics:
 in getcoord() you need to specify:
@@ -28,9 +32,13 @@ x = vector containg the files' names that will be processed
 up.s = number of bp upstram the TSS
 down.s = number of bp downstream the TSS
 DE = character that can be 'up' or 'down' for upreagulated or downregulated respectively
-FDR = a number (or a vector containing numbers) specifying the FDR that need to be use for each file. IMPORTANT - the file order in x and the FDR numbers has to match the corrisponding data - sharing the same position in the vector.
+FDR = a number (or a vector containing numbers) specifying the FDR that need to be use for each file. IMPORTANT - the file
+order in x and the FDR numbers has to match the corrisponding data - sharing the same position in the vector.
 
-In addition, get.coord() gives back two series of plot representing the distribution of the distance of the first codon from the TSS sperated in upregulated and downregulated genes for each sample. Obviously, this analysis is possible only for those genes that have such information in the data frame. All the genes that miss such information are removed from the density distribution. However, the percentage of genes used for the analysis is given in the final graphs.
+In addition, get.coord() gives back two series of plot representing the distribution of the distance of the first codon from
+the TSS sperated in upregulated and downregulated genes for each sample. Obviously, this analysis is possible only for those
+genes that have such information in the data frame. All the genes that miss such information are removed from the density
+distribution. However, the percentage of genes used for the analysis is given in the final graphs.
 
 ```{r}
 
@@ -85,7 +93,8 @@ get.coord = function(x, up.s, down.s, DE, FDR){ #specify the function.
   options("scipen"=100, "digits"=4)
   
   #writes the data frame in the same folder from which it was previously loaded
-  write.table(coord, paste0(input, x[i], '_', DE, '_regulated_coord around TSS -', up.s, ' +', down.s, '.bed'), sep= "\t", col.names =F, row.names = F,  quote = F)
+  write.table(coord, paste0(input, x[i], '_', DE, '_regulated_coord around TSS -', up.s, ' +', down.s, '.bed'), sep= "\t",
+  col.names =F, row.names = F,  quote = F)
   
   #calculates and plots the density distribution of the distance from the first codon from the TSS
   plot((dens<-density(log10(new.RNA.data$distance.to.the.start.codon))),
