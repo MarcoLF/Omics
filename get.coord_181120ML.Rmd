@@ -1,0 +1,112 @@
+---
+title: "get.coord() 181120_ML"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+*The following script returns genomic coordinates around preset TSSs using a range that is decided by the user.* 
+
+Here, I develop such script starting from RNA-seq data that were previously analysed (*FGC - ETH Zurich*). More specifically, from previously defined TSSs, I wanted to defined the coordinates around each TSS with a given dimension (*n* bases upstream and *m* downstram from each TSS) taking in consideration the gene orientation (+ or - strand) to which the TSS is associated.
+
+To start, I specify the path where to look for the data that contains our starting information (RNA-seq analysis derived)
+```{r}
+input = "" #folder containg my data
+
+name = c('L4440_grh1', 'N2_del', 'N2b1_2', 'N2b2_11') #names of the RNA-seq data table
+FDR = c('1','1','1','1') #FDR values for each samples -SAME OREDER!!-
+
+#returns an example of how the dataframe looks like
+head(read.table(paste0(name[1], '.txt'), sep = "\t", header = T)) 
+```
+
+The function **get.coord()** uses the information from the RNA-seq dataframes and returns for each of them a new .bed file that can be processed with the function *getfasta* (*bedtools2*) to obtain the specific sequences.
+
+**Specifics:**
+in **getcoord()** you need to specify:
+
+**x** = vector containg the files' names that will be processed  
+**up.s** = number of bp upstram the TSS  
+**down.s** = number of bp downstream the TSS  
+**DE** = character that can be 'up' or 'down' for upreagulated or downregulated respectively  
+**FDR** = a number (or a vector containing numbers) specifying the FDR that need to be use for each file. **IMPORTANT** - *the file order in x and the FDR numbers has to match the corrisponding data - sharing the same position in the vector.*
+
+In addition, **get.coord()** gives back two series of plot representing the distribution of the distance of the first codon from the TSS sperated in upregulated and downregulated genes for each sample. Obviously, this analysis is possible only for those genes that have such information in the data frame. All the genes that miss such information are removed from the density distribution. However, the percentage of genes used for the analysis is given in the final graphs.
+
+```{r}
+
+get.coord = function(x, up.s, down.s, DE, FDR){ #specify the function.
+  
+  #set the condition for the graphs print as .pdf
+  pdf(file=paste0(input, DE, " density from the first codon.pdf", sep=""), 
+      width=11.69, height=8.27);
+  
+  par(mfcol=c(2,2));
+  par(mai=c(1,1,1,1));
+  
+  #this loop runs for each i element of the x vector
+  for (i in 1:length(x)){
+  
+    #import specifc data  
+  d = read.table(paste0(input, x[i], '.txt'), header = T, sep = "\t") 
+  #converts (makes sure) the column chromosome as "character"
+  d$chr= as.character(d$chr) 
+  #removes the data from the mtDNA
+  d = d[which(d$chr != "MtDNA"),] 
+  
+  if (DE %in% 'up'){
+    #selects only up regulated genes according to the FDR value
+    d = d[which(d$log2.Ratio > 0 & d$fdr.RNAseq < FDR[i]),] 
+  }
+  else {
+    #selects only dowen regualted genes according to the FDR value
+    d = d[which(d$log2.Ratio < 0 & d$fdr.RNAseq < FDR[i]),] 
+  }
+  
+  #creates a new df based on those genes that have the first codon position
+  new.RNA.data = d[complete.cases(d$start.position),] 
+  
+  #defines the TSS from the RNA-seq data and from previously published data (check table)
+  tss = c(ifelse(d$start.position %in% NA,
+                 ifelse(d$strand %in% '-', d$end.RNAseq, d$start.RNAseq), 
+                 d$start.position)) 
+  
+  #creates a new df with the relevant information for the next steps
+  n.d = data.frame(id = d$Wormbase.ID, chr = d$chr, TSS = tss,  strand =d$strand) 
+  #determine the upstream position
+  n.d$start.adj = ifelse(n.d$strand %in% "-", n.d$TSS - down.s, n.d$TSS - up.s)
+  #determine the downstream position
+  n.d$end.adj = ifelse(n.d$strand %in% "-", n.d$TSS + up.s, n.d$TSS + down.s)
+  #sets to 0 those genes that result with negative strating point
+  n.d$start.adj = ifelse(n.d$start.adj < 0, 0, n.d$start.adj)
+  #adds the gene wormbase ID to each coordinate set
+  n.d$name = d$Wormbase.ID
+  
+  #generates the final relevant data frame
+  coord = data.frame( chr = paste0("chr",n.d$chr), n.d$start.adj, n.d$end.adj, n.d$name)
+  #remove scintific annotation
+  options("scipen"=100, "digits"=4)
+  
+  #writes the data frame in the same folder from which it was previously loaded
+  write.table(coord, paste0(input, x[i], '_', DE, 
+                            '_regulated_coord around TSS -', up.s, ' +', down.s, '.bed'),
+              sep= "\t", col.names =F, row.names = F,  quote = F)
+  
+  #calculates and plots the density distribution of the distances 
+  #from the first codon to the TSS
+  plot((dens<-density(log10(new.RNA.data$distance.to.the.start.codon))),
+       main = paste0('analysis of ', x[i], " ",DE, " regulated \n",
+                     round(length(new.RNA.data[,1])/length(d[,1])*100, digits = 2), 
+                     '% out of ', length(d[,1]), " total genes"),
+       xlab=paste0("log distance to the first codon \n"), 
+       ylab="Density", lwd=2);
+  abline(v = mean(log10(new.RNA.data$distance.to.the.start.codon)), col = "red");
+  abline(v = log10(1000), col = "blue");
+  
+  }
+  rm(i);
+  dev.off();
+}
+```
+
