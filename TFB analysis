@@ -1,0 +1,134 @@
+
+#upload file containg position values
+grh = read.table("Desktop/Promoter analysis/GRH-1.pfm.txt", sep = '\t', header = T)
+
+#vector with all values per base per postion
+v = c(grh$A, grh$C, grh$G, grh$T)
+
+#create PFM for TFBStools
+pfm <- PFMatrix(name="Grh-1", strand="+",
+                bg=c(A=0.25, C=0.25, G=0.25, T=0.25),
+                tags=list(species="C.elegans",
+                          tax_group="nematodes"),
+                profileMatrix=matrix(v,
+                                     byrow=TRUE, nrow=4,
+                                     dimnames=list(c("A", "C", "G", "T"))
+                )
+)
+
+#create PWM from PFM
+pwm = toPWM(pfm, pseudocounts = 0.8)
+
+
+#specify directory
+dir = "Desktop/Promoter analysis/"
+
+#name of the genes
+name = c('L4440_grh1', 'N2_del', 'N2b1_2', 'N2b2_11')
+
+# name = c('L4440_grh1') ++use it as example on one data set only
+
+
+#function that uses TFBSTools
+TFBs.analysis = function(dir,data,pwm,score){
+  
+  library(TFBSTools)
+  library(Biostring)
+  library(ggplot2)
+  
+  for(i in 1:length(data)) {
+    
+    y = c("up", "down")
+    
+    datalist = list()
+    datalist2 = list()
+    
+    for (j in 1:length(y)) {
+      
+      seq = readDNAStringSet(paste0(dir, data[i],"_", y[j],"_", "SEQ.fasta"))
+      siteset = searchSeq(pwm, seq, min.score = score, strand = "*")
+      df = as.data.frame(writeGFF3(siteset))
+      c = as.character(df$seqname)
+      c = strsplit(c, ":")
+      names = lapply(c, '[[', 1)
+      df$Wormbase.ID = names
+      length(unique(df$Wormbase.ID))
+
+      rna = read.table(paste0(dir, data[i], ".txt"), sep = '\t', header = T)
+      n.df = merge(rna, df, by = "Wormbase.ID")
+      
+      n.coord = data.frame(Wormbase.ID = n.df$Wormbase.ID,
+                           gene_name = n.df$gene_name,
+                           gene_strand = n.df$strand.x,
+                           TFBs_strand = n.df$strand.y,
+                           start = ifelse(n.df$strand.x %in% "+",
+                                          n.df$start - 2500, 1000 - n.df$start),
+                           end = ifelse(n.df$strand.x %in% "+",
+                                        n.df$end - 2500, 1000 - n.df$end),
+                           width = n.df$end - n.df$start,
+                           motif = n.df$attributes,
+                           DE = rep(y[j], length(n.df$Wormbase.ID)),
+                           log2.Ratio = n.df$log2.Ratio)
+      
+      datalist2[[j]] = n.coord
+      
+      rna$labels = ifelse(rna$Wormbase.ID %in% n.df$Wormbase.ID, "bound", "")
+      datalist[[j]] = rna
+    }
+    final.df = do.call(rbind, datalist);
+    
+    
+    t = textGrob(paste0("pwm = grh-1","\n",
+                        "score = ", score,"\n",
+                        "sample = ", data[i]))
+    
+    p1 = ggplot(data = final.df, aes(final.df$log2.Ratio, -log10(final.df$fdr.RNAseq)))+
+      geom_point(pch=21, fill="grey", alpha = 0.5, pch=21)+
+      geom_point(data = final.df[which(final.df$labels %in% "bound"),], 
+                 aes(log2.Ratio, -log10(fdr.RNAseq)), fill="steelblue", pch=21)+
+      labs(x = expression(paste("log"[2],"RNA fold change")), 
+           y = expression(paste("-log"[10]," FDR")))+
+      annotate("text", x = 0, y = max(-log10(final.df$fdr.RNAseq)-1),
+               label = paste0("Down, n = ", length(final.df$labels[which(final.df$log2.Ratio < 0
+                                                                   & final.df$labels %in% "bound")]),
+                              "\n", "Up, n = ", length(final.df$labels[which(final.df$log2.Ratio > 0
+                                                                             & final.df$labels %in% "bound")])),
+               col = "steelblue")+
+      theme_classic(12)
+    
+    final.df2 = do.call(rbind, datalist2);
+    
+    a = as.data.frame(table(final.df2$gene_name));
+    colnames(a) = c("gene_name", "freq");
+    a.d = merge(a, final.df2, by = "gene_name");
+    
+    
+    write.table(final.df2, paste0(dir, data[i], "TFB_analysis_", score, ".txt"),
+                sep = "\t", quote = F)
+    
+    p2 = ggplot(final.df2, aes(start))+
+      geom_histogram(binwidth = 200, col = "white", fill = "grey")+
+      labs(x = "distance from the TSS [bp]")+
+      facet_grid(. ~ DE)+
+      geom_vline(xintercept = 0, col = "firebrick3")+
+      theme_classic(12)
+    
+    p3 = ggplot(count(final.df2, 'gene_name'), aes(log(freq)))+
+      geom_histogram(col = "white", fill = "grey", stat = "count")+
+      #facet_grid(. ~ DE)+
+      labs(x = "number of motifs per gene")+
+      theme_classic(12)
+    
+    g = ggarrange(t, p3, p1, ggarrange(p2), ncol = 2, nrow = 2)
+    
+    ggsave(paste0(dir, data[i], "_TFB_analysis.pdf"), plot = g,
+          device = "pdf");
+    
+  dev.off()
+  }
+  rm(j);
+  rm(i);
+}
+
+
+TFBs.analysis(dir, data =name, pwm, score = "95%")
