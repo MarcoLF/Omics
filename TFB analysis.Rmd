@@ -32,16 +32,6 @@ in **getcoord()** you need to specify:
 
 In addition, **get.coord()** gives back two series of plot representing the distribution of the distance of the first codon from the TSS sperated in upregulated and downregulated genes for each sample. Obviously, this analysis is possible only for those genes that have such information in the data frame. All the genes that miss such information are removed from the density distribution. However, the percentage of genes used for the analysis is given in the final graphs.
 
--The function **TFBs.analysis()** uses the information from the get.coord() and a preset pwm. Now, it is based on TFBSTools and uses functions from Biostrings.
-
-**Specifics:**
-in **TFBs.analysis** you need to specify:
-
-**input** = the name of the directory where files are stored and where the output will be saved
-**data** = vector containing the files' names that will be processed
-**pwm** = PWMatrix objects to use for the search
-**score** = identity score for the pwm
-
 ```{r}
 #function to calculate new coordinates
 get.coord = function(x, up.s, down.s, DE, FDR){ #specify the function.
@@ -116,7 +106,24 @@ get.coord = function(x, up.s, down.s, DE, FDR){ #specify the function.
   rm(i);
   dev.off();
 }
+```
 
+The file porcessed are used in bedtools2 to obtain the fasta file. It is foundamental to download the entire genome from where the exact sequence can be retrieved using the get.coord() outputs.
+
+
+$ bedtools getfasta -fi genome.fa -bed yourfilename.bed -name > output.txt 
+
+-The function **TFBs.analysis()** uses the information from the get.coord() and a preset pwm. Now, it is based on TFBSTools and uses functions from Biostrings.
+
+**Specifics:**
+in **TFBs.analysis** you need to specify:
+
+**input** = the name of the directory where files are stored and where the output will be saved
+**data** = vector containing the files' names that will be processed
+**pwm** = PWMatrix objects to use for the search
+**score** = identity score for the pwm
+
+```{r}
 
 #upload file containg position values
 grh = read.table("Desktop/Promoter analysis/GRH-1.pfm.txt", sep = '\t', header = T)
