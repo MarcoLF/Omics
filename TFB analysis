@@ -19,18 +19,29 @@ FDR = c('1','1','1','1') #FDR values for each samples -SAME OREDER!!-
 head(read.table(paste0(name[1], '.txt'), sep = "\t", header = T)) 
 ```
 
-The function **get.coord()** uses the information from the RNA-seq dataframes and returns for each of them a new .bed file that can be processed with the function *getfasta* (*bedtools2*) to obtain the specific sequences.
+-The function **get.coord()** uses the information from the RNA-seq dataframes and returns for each of them a new .bed file that can be processed with the function *getfasta* (*bedtools2*) to obtain the specific sequences.
 
 **Specifics:**
 in **getcoord()** you need to specify:
 
-**x** = vector containg the files' names that will be processed  
+**x** = vector containing the files' names that will be processed  
 **up.s** = number of bp upstram the TSS  
 **down.s** = number of bp downstream the TSS  
 **DE** = character that can be 'up' or 'down' for upreagulated or downregulated respectively  
 **FDR** = a number (or a vector containing numbers) specifying the FDR that need to be use for each file. **IMPORTANT** - *the file order in x and the FDR numbers has to match the corrisponding data - sharing the same position in the vector.*
 
 In addition, **get.coord()** gives back two series of plot representing the distribution of the distance of the first codon from the TSS sperated in upregulated and downregulated genes for each sample. Obviously, this analysis is possible only for those genes that have such information in the data frame. All the genes that miss such information are removed from the density distribution. However, the percentage of genes used for the analysis is given in the final graphs.
+
+-The function **TFBs.analysis()** uses the information from the get.coord() and a preset pwm. Now, it is based on TFBSTools and uses functions from Biostrings.
+
+**Specifics:**
+in **TFBs.analysis** you need to specify:
+
+**input** = the name of the directory where files are stored and where the output will be saved
+**data** = vector containing the files' names that will be processed
+**pwm** = PWMatrix objects to use for the search
+**score** = identity score for the pwm
+
 
 #function to calculate new coordinates
 get.coord = function(x, up.s, down.s, DE, FDR){ #specify the function.
@@ -138,7 +149,7 @@ name = c('L4440_grh1', 'N2_del', 'N2b1_2', 'N2b2_11')
 
 
 #function that uses TFBSTools
-TFBs.analysis = function(dir,data,pwm,score){
+TFBs.analysis = function(input,data,pwm,score){
   
   library(TFBSTools)
   library(Biostring)
@@ -153,7 +164,7 @@ TFBs.analysis = function(dir,data,pwm,score){
     
     for (j in 1:length(y)) {
       
-      seq = readDNAStringSet(paste0(dir, data[i],"_", y[j],"_", "SEQ.fasta"))
+      seq = readDNAStringSet(paste0(input, data[i],"_", y[j],"_", "SEQ.fasta"))
       siteset = searchSeq(pwm, seq, min.score = score, strand = "*")
       df = as.data.frame(writeGFF3(siteset))
       c = as.character(df$seqname)
@@ -162,7 +173,7 @@ TFBs.analysis = function(dir,data,pwm,score){
       df$Wormbase.ID = names
       length(unique(df$Wormbase.ID))
 
-      rna = read.table(paste0(dir, data[i], ".txt"), sep = '\t', header = T)
+      rna = read.table(paste0(input, data[i], ".txt"), sep = '\t', header = T)
       n.df = merge(rna, df, by = "Wormbase.ID")
       
       n.coord = data.frame(Wormbase.ID = n.df$Wormbase.ID,
@@ -211,7 +222,7 @@ TFBs.analysis = function(dir,data,pwm,score){
     a.d = merge(a, final.df2, by = "gene_name");
     
     
-    write.table(final.df2, paste0(dir, data[i], "TFB_analysis_", score, ".txt"),
+    write.table(final.df2, paste0(input, data[i], "TFB_analysis_", score, ".txt"),
                 sep = "\t", quote = F)
     
     p2 = ggplot(final.df2, aes(start))+
@@ -229,7 +240,7 @@ TFBs.analysis = function(dir,data,pwm,score){
     
     g = ggarrange(t, p3, p1, ggarrange(p2), ncol = 2, nrow = 2)
     
-    ggsave(paste0(dir, data[i], "_TFB_analysis.pdf"), plot = g,
+    ggsave(paste0(input, data[i], "_TFB_analysis.pdf"), plot = g,
           device = "pdf");
     
   dev.off()
@@ -239,4 +250,4 @@ TFBs.analysis = function(dir,data,pwm,score){
 }
 
 
-TFBs.analysis(dir, data =name, pwm, score = "95%")
+TFBs.analysis(input, data =name, pwm, score = "95%")
