@@ -1,4 +1,79 @@
 
+#function to calculate new coordinates
+get.coord = function(x, up.s, down.s, DE, FDR){ #specify the function.
+  
+  #set the condition for the graphs print as .pdf
+  pdf(file=paste0(input, DE, " density from the first codon.pdf", sep=""), 
+      width=11.69, height=8.27);
+  
+  par(mfcol=c(2,2));
+  par(mai=c(1,1,1,1));
+  
+  #this loop runs for each i element of the x vector
+  for (i in 1:length(x)){
+  
+    #import specifc data  
+  d = read.table(paste0(input, x[i], '.txt'), header = T, sep = "\t") 
+  #converts (makes sure) the column chromosome as "character"
+  d$chr= as.character(d$chr) 
+  #removes the data from the mtDNA
+  d = d[which(d$chr != "MtDNA"),] 
+  
+  if (DE %in% 'up'){
+    #selects only up regulated genes according to the FDR value
+    d = d[which(d$log2.Ratio > 0 & d$fdr.RNAseq < FDR[i]),] 
+  }
+  else {
+    #selects only dowen regualted genes according to the FDR value
+    d = d[which(d$log2.Ratio < 0 & d$fdr.RNAseq < FDR[i]),] 
+  }
+  
+  #creates a new df based on those genes that have the first codon position
+  new.RNA.data = d[complete.cases(d$start.position),] 
+  
+  #defines the TSS from the RNA-seq data and from previously published data (check table)
+  tss = c(ifelse(d$start.position %in% NA,
+                 ifelse(d$strand %in% '-', d$end.RNAseq, d$start.RNAseq), 
+                 d$start.position)) 
+  
+  #creates a new df with the relevant information for the next steps
+  n.d = data.frame(id = d$Wormbase.ID, chr = d$chr, TSS = tss,  strand =d$strand) 
+  #determine the upstream position
+  n.d$start.adj = ifelse(n.d$strand %in% "-", n.d$TSS - down.s, n.d$TSS - up.s)
+  #determine the downstream position
+  n.d$end.adj = ifelse(n.d$strand %in% "-", n.d$TSS + up.s, n.d$TSS + down.s)
+  #sets to 0 those genes that result with negative strating point
+  n.d$start.adj = ifelse(n.d$start.adj < 0, 0, n.d$start.adj)
+  #adds the gene wormbase ID to each coordinate set
+  n.d$name = d$Wormbase.ID
+  
+  #generates the final relevant data frame
+  coord = data.frame( chr = paste0("chr",n.d$chr), n.d$start.adj, n.d$end.adj, n.d$name)
+  #remove scintific annotation
+  options("scipen"=100, "digits"=4)
+  
+  #writes the data frame in the same folder from which it was previously loaded
+  write.table(coord, paste0(input, x[i], '_', DE, 
+                            '_regulated_coord around TSS -', up.s, ' +', down.s, '.bed'),
+              sep= "\t", col.names =F, row.names = F,  quote = F)
+  
+  #calculates and plots the density distribution of the distances 
+  #from the first codon to the TSS
+  plot((dens<-density(log10(new.RNA.data$distance.to.the.start.codon))),
+       main = paste0('analysis of ', x[i], " ",DE, " regulated \n",
+                     round(length(new.RNA.data[,1])/length(d[,1])*100, digits = 2), 
+                     '% out of ', length(d[,1]), " total genes"),
+       xlab=paste0("log distance to the first codon \n"), 
+       ylab="Density", lwd=2);
+  abline(v = mean(log10(new.RNA.data$distance.to.the.start.codon)), col = "red");
+  abline(v = log10(1000), col = "blue");
+  
+  }
+  rm(i);
+  dev.off();
+}
+
+
 #upload file containg position values
 grh = read.table("Desktop/Promoter analysis/GRH-1.pfm.txt", sep = '\t', header = T)
 
